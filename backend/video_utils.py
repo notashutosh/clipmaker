@@ -19,7 +19,13 @@ def download_youtube(url: str, output_dir: str) -> str:
         "--print", "after_move:filepath",
         url,
     ]
-    result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"yt-dlp failed (exit {result.returncode}):\n"
+            f"STDOUT: {result.stdout.strip()}\n"
+            f"STDERR: {result.stderr.strip()}"
+        )
     video_path = result.stdout.strip().splitlines()[-1]
     return video_path
 

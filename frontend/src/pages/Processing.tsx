@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { pollStatus, getTranscript } from '../api'
 import type { TranscriptSegment, JobStatus } from '../types'
 import { Loader2, CheckCircle, XCircle } from 'lucide-react'
@@ -12,12 +12,32 @@ const STATUS_LABELS: Record<JobStatus, string> = {
   pending: 'Queued…',
   downloading: 'Downloading video…',
   extracting: 'Extracting audio…',
-  transcribing: 'Transcribing (this may take several minutes)…',
+  transcribing: 'Transcribing…',
   done: 'Done!',
   error: 'Error',
 }
 
 const STEPS: JobStatus[] = ['pending', 'downloading', 'extracting', 'transcribing', 'done']
+
+function useElapsedSeconds(running: boolean) {
+  const [elapsed, setElapsed] = useState(0)
+  const startRef = useRef<number | null>(null)
+  useEffect(() => {
+    if (!running) { startRef.current = null; return }
+    if (startRef.current === null) startRef.current = Date.now()
+    const interval = setInterval(() => {
+      setElapsed(Math.floor((Date.now() - startRef.current!) / 1000))
+    }, 1000)
+    return () => clearInterval(interval)
+  }, [running])
+  return elapsed
+}
+
+function fmtElapsed(s: number) {
+  const m = Math.floor(s / 60)
+  const sec = s % 60
+  return m > 0 ? `${m}m ${sec}s` : `${sec}s`
+}
 
 export default function Processing({ jobId, onDone }: Props) {
   const [status, setStatus] = useState<JobStatus>('pending')
@@ -25,6 +45,7 @@ export default function Processing({ jobId, onDone }: Props) {
   const [progress, setProgress] = useState(0)
   const [error, setError] = useState('')
   const [log, setLog] = useState<string[]>([])
+  const elapsed = useElapsedSeconds(status === 'transcribing')
 
   useEffect(() => {
     let cancelled = false
@@ -76,7 +97,6 @@ export default function Processing({ jobId, onDone }: Props) {
             const stepI = STEPS.indexOf(s)
             const done = currentStepIndex > stepI
             const active = currentStepIndex === stepI
-            const upcoming = currentStepIndex < stepI
             return (
               <div key={s} className="flex items-center gap-3">
                 <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-sm ${
@@ -94,17 +114,33 @@ export default function Processing({ jobId, onDone }: Props) {
 
         {/* Transcription progress bar */}
         {(status === 'transcribing' || (status === 'done' && progress > 0)) && (
-          <div className="mb-6">
-            <div className="flex justify-between text-xs text-gray-500 mb-1">
-              <span>Transcription progress</span>
-              <span>{status === 'done' ? 100 : progress}%</span>
+          <div className="mb-6 bg-gray-900 rounded-lg p-4">
+            <div className="flex justify-between text-xs text-gray-400 mb-2">
+              <span className="font-medium">
+                {status === 'done' ? '✓ Transcription complete' : `Transcribing… ${progress > 0 ? `${progress}%` : ''}`}
+              </span>
+              <span className="font-mono text-gray-500">
+                {status === 'transcribing' && `${fmtElapsed(elapsed)} elapsed`}
+              </span>
             </div>
             <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-indigo-500 rounded-full transition-all duration-500"
-                style={{ width: `${status === 'done' ? 100 : progress}%` }}
-              />
+              {progress > 0 ? (
+                <div
+                  className="h-full bg-indigo-500 rounded-full transition-all duration-500"
+                  style={{ width: `${status === 'done' ? 100 : progress}%` }}
+                />
+              ) : (
+                /* Indeterminate animation when percentage unknown */
+                <div className="h-full w-1/3 bg-indigo-500 rounded-full animate-[indeterminate_1.5s_ease-in-out_infinite]"
+                  style={{ animation: 'indeterminate 1.5s ease-in-out infinite' }}
+                />
+              )}
             </div>
+            {status === 'transcribing' && elapsed > 30 && (
+              <p className="text-[11px] text-gray-600 mt-2">
+                This can take a while on CPU — {elapsed > 120 ? `${Math.floor(elapsed/60)} min so far, still running…` : 'hang tight…'}
+              </p>
+            )}
           </div>
         )}
 

@@ -13,3 +13,9 @@
 ::-webkit-scrollbar-track { @apply bg-gray-900; }
 ::-webkit-scrollbar-thumb { @apply bg-gray-600 rounded-full; }
 ::-webkit-scrollbar-thumb:hover { @apply bg-gray-500; }
+
+@keyframes indeterminate {
+  0%   { transform: translateX(-100%); }
+  50%  { transform: translateX(150%); }
+  100% { transform: translateX(400%); }
+}

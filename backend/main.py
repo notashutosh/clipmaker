@@ -87,6 +87,8 @@ def run_pipeline(job_id: str):
 
     j = jobs[job_id]
 
+    import sys
+    print(f"[pipeline] job={job_id} source={j.get('source')} video_path={j.get('video_path')} youtube_url={j.get('youtube_url')}", flush=True)
     def progress(msg: str):
         j["message"] = msg
         # Parse percentage out of messages like "Transcribing… 45%"
@@ -102,8 +104,10 @@ def run_pipeline(job_id: str):
         if j.get("source") == "url":
             progress("Downloading from YouTube…")
             video_path = download_youtube(j["youtube_url"], str(jdir))
-        else:
+        elif j.get("video_path"):
             video_path = j["video_path"]  # already saved by upload endpoint
+        else:
+            raise RuntimeError("No video source: neither a YouTube URL nor an uploaded file was found.")
 
         j["video_path"] = video_path
         j["duration"] = get_video_duration(video_path)
