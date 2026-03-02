@@ -70,9 +70,11 @@ def transcribe_and_diarize(
     log("Loading Whisper model…")
     import whisper
     import whisper.transcribe as _wt
+    import tqdm as _tqdm_module
+    import tqdm.auto as _tqdm_auto
     from tqdm import tqdm as _real_tqdm
 
-    # Patch whisper's internal tqdm so we can report % progress
+    # Patch tqdm at every level whisper might import it from
     class _ProgressTqdm(_real_tqdm):
         def update(self, n=1):
             super().update(n)
@@ -83,11 +85,16 @@ def transcribe_and_diarize(
     model = whisper.load_model(whisper_model)
 
     log("Transcribing… 0%")
+    # Patch all the places whisper might pull tqdm from
     _wt.tqdm = _ProgressTqdm
+    _tqdm_module.tqdm = _ProgressTqdm
+    _tqdm_auto.tqdm = _ProgressTqdm
     try:
-        result = model.transcribe(audio_path, verbose=False)
+        result = model.transcribe(audio_path, verbose=None)
     finally:
         _wt.tqdm = _real_tqdm
+        _tqdm_module.tqdm = _real_tqdm
+        _tqdm_auto.tqdm = _real_tqdm
 
     segments: list[TranscriptSegment] = []
     for i, seg in enumerate(result["segments"]):
